@@ -1,0 +1,39 @@
+# Git 관련
+.git/
+.gitignore
+
+# 문서
+docs/
+README.md
+
+# 설정 파일
+.clasp.json
+.clasprc.json
+.clasp.json.example
+
+# CI/CD
+.github/
+.agent/
+.claude/
+
+# 설치 스크립트
+setup.sh
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+package.json
+package-lock.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 로그
+*.log
+npm-debug.log*

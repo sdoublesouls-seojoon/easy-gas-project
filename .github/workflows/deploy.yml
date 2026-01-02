@@ -1,0 +1,74 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🔍 Check secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.SCRIPT_ID }}" ] || [ -z "${{ secrets.CLASP_TOKEN_BASE64 }}" ]; then
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Secrets not configured yet. Skipping deployment."
+          else
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📥 Checkout repository
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🔧 Install clasp
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: npm install -g @google/clasp
+
+      - name: 🔐 Setup clasp credentials
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          echo '${{ secrets.CLASP_TOKEN_BASE64 }}' | base64 -d > ~/.clasprc.json
+          echo '{"scriptId":"${{ secrets.SCRIPT_ID }}"}' > .clasp.json
+
+      - name: 🚀 Push to Google Apps Script
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: clasp push --force
+
+      - name: 📋 Check for release keyword
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        id: check_release
+        run: |
+          if echo "${{ github.event.head_commit.message }}" | grep -q "\[release\]"; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🎉 Create new version (if release)
+        if: steps.check_secrets.outputs.has_secrets == 'true' && steps.check_release.outputs.is_release == 'true'
+        run: |
+          VERSION_DESC=$(echo "${{ github.event.head_commit.message }}" | head -n 1)
+          clasp version "$VERSION_DESC"
+          echo "✅ New version created: $VERSION_DESC"
+
+      - name: ✅ Deployment complete
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          echo "=========================================="
+          echo "🎊 Deployment completed successfully!"
+          echo "=========================================="
+          if [ "${{ steps.check_release.outputs.is_release }}" == "true" ]; then
+            echo "📦 A new version was created."
+          else
+            echo "📝 Code pushed (no new version created)."
+          fi

@@ -87,6 +87,77 @@ setup.sh 한 번 실행으로 GitHub 레포 생성, GAS 프로젝트 연결, Sec
 - 커밋 메시지에 `[release]` 포함 시 새 버전 생성
 - `.clasp.json`은 gitignore 대상
 
+## 자동화된 워크플로우 (중요!)
+
+### 배포는 항상 GitHub Actions 사용
+
+**✅ 올바른 방법:**
+```bash
+# 1. 코드 수정
+# 2. 커밋 & 푸시
+git add .
+git commit -m "[deploy] 기능 추가"  # [deploy] 또는 [release] 키워드
+git push origin main
+
+# 3. GitHub Actions 자동 실행 확인
+gh run list --limit 1
+gh run view [run-id] --log
+```
+
+**❌ 금지된 패턴:**
+```bash
+# 로컬에서 clasp 명령 직접 사용 금지!
+clasp push    # ❌ 사용하지 마세요
+clasp deploy  # ❌ 사용하지 마세요
+```
+
+### 커밋 메시지 키워드
+
+| 키워드 | 동작 | 사용 예시 |
+|--------|------|-----------|
+| (없음) | 코드만 업로드 | `git commit -m "기능 개선"` |
+| `[deploy]` | 코드 업로드 + Web App 배포 | `git commit -m "[deploy] 칸반 보드 배포"` |
+| `[release]` | 버전 생성 + 배포 | `git commit -m "[release] v1.0.0 - 첫 릴리스"` |
+
+### 배포 상태 확인 (gh CLI 필수 사용)
+
+```bash
+# 최근 실행 목록
+gh run list --limit 3
+
+# 특정 실행 로그 확인
+gh run view [run-id] --log
+
+# 배포 성공 시 Web App URL 추출
+# 로그에서 "Deployed AKfycby..." 찾기
+```
+
+### Web App URL 확인 방법
+
+1. **gh CLI로 로그에서 확인:**
+   ```bash
+   gh run view [run-id] --log | grep "Deployed"
+   # 출력: Deployed AKfycby... @3
+   ```
+
+2. **URL 형식:**
+   ```
+   https://script.google.com/macros/s/[DEPLOYMENT_ID]/exec
+   ```
+
+3. **로컬 clasp 사용 (읽기 전용):**
+   ```bash
+   clasp deployments  # 배포 목록만 확인 (변경 금지)
+   ```
+
+### Frontend 개발 특별 규칙
+
+**React 등 프론트엔드 개발 시:**
+- `frontend/` 폴더는 `.gitignore`에 포함
+- 빌드된 결과물(`Index.html`)만 Git 커밋
+- 소스 파일은 로컬에만 보관
+- 빌드: `npm run build --prefix frontend`
+
 ## 에스컬레이션 규칙
 
 Agent가 스스로 판단하기 어려운 상황에서 사용자에게 확인을 요청한다.

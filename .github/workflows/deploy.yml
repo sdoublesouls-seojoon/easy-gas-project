@@ -44,22 +44,48 @@ jobs:
         if: steps.check_secrets.outputs.has_secrets == 'true'
         run: clasp push --force
 
-      - name: 📋 Check for release keyword
+      - name: 📋 Check for deploy/release keywords
         if: steps.check_secrets.outputs.has_secrets == 'true'
-        id: check_release
+        id: check_keywords
         run: |
-          if echo "${{ github.event.head_commit.message }}" | grep -q "\[release\]"; then
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          # [deploy] 또는 [release] 키워드 확인
+          if echo "$COMMIT_MSG" | grep -q "\[deploy\]"; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          elif echo "$COMMIT_MSG" | grep -q "\[release\]"; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_release=true" >> $GITHUB_OUTPUT
           else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
             echo "is_release=false" >> $GITHUB_OUTPUT
           fi
 
       - name: 🎉 Create new version (if release)
-        if: steps.check_secrets.outputs.has_secrets == 'true' && steps.check_release.outputs.is_release == 'true'
+        if: steps.check_secrets.outputs.has_secrets == 'true' && steps.check_keywords.outputs.is_release == 'true'
         run: |
           VERSION_DESC=$(echo "${{ github.event.head_commit.message }}" | head -n 1)
           clasp version "$VERSION_DESC"
           echo "✅ New version created: $VERSION_DESC"
+
+      - name: 🌐 Deploy Web App (if deploy or release)
+        if: steps.check_secrets.outputs.has_secrets == 'true' && steps.check_keywords.outputs.should_deploy == 'true'
+        id: deploy_webapp
+        run: |
+          # 최신 버전 ID 가져오기 (release인 경우)
+          if [ "${{ steps.check_keywords.outputs.is_release }}" == "true" ]; then
+            VERSION_ID=$(clasp versions | tail -n 1 | awk '{print $2}')
+            clasp deploy -i "$VERSION_ID" -d "Auto-deployed by GitHub Actions"
+          else
+            # [deploy]인 경우 HEAD 버전 배포
+            clasp deploy -d "Auto-deployed by GitHub Actions"
+          fi
+
+          # Deployment ID 저장
+          DEPLOY_ID=$(clasp deployments | grep "Auto-deployed" | tail -n 1 | awk '{print $2}')
+          echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          echo "✅ Web App deployed successfully!"
 
       - name: ✅ Deployment complete
         if: steps.check_secrets.outputs.has_secrets == 'true'
@@ -67,8 +93,13 @@ jobs:
           echo "=========================================="
           echo "🎊 Deployment completed successfully!"
           echo "=========================================="
-          if [ "${{ steps.check_release.outputs.is_release }}" == "true" ]; then
-            echo "📦 A new version was created."
+          echo "📝 Code pushed to GAS"
+
+          if [ "${{ steps.check_keywords.outputs.is_release }}" == "true" ]; then
+            echo "📦 New version created"
+            echo "🌐 Web App deployed (version)"
+          elif [ "${{ steps.check_keywords.outputs.should_deploy }}" == "true" ]; then
+            echo "🌐 Web App deployed (HEAD)"
           else
-            echo "📝 Code pushed (no new version created)."
+            echo "ℹ️ Web App not deployed (use [deploy] or [release] in commit message)"
           fi
